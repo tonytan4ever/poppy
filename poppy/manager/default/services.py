@@ -28,6 +28,7 @@ class DefaultServicesController(base.ServicesController):
 
         self.storage_controller = self._driver.storage.services_controller
         self.flavor_controller = self._driver.storage.flavors_controller
+        self.queue = self._driver.queue
 
     def list(self, project_id, marker=None, limit=None):
         return self.storage_controller.list(project_id, marker, limit)
@@ -56,24 +57,29 @@ class DefaultServicesController(base.ServicesController):
         message['body'] = service_json
 
         # send service_json to a queue
-        # make sure to get ack
-        queue.enqueue(message)
+        ack = queue.enqueue(message):
+        if ack:
+            # everything is good
+            pass
+        else:
+            raise Exception
 
         return
 
-    def update(self, project_id, service_name, service_obj, service_json):
-        # do basic sanity checks
+    def update(self, project_id, service_name, service_obj):
+        self.storage_controller.update(
+            project_id,
+            service_name,
+            service_obj
+        )
 
-        message = {}
-        message['action'] = 'update'
-        message['project_id'] = project_id
-        message['service_name'] = service_name
-        message['body'] = service_json
-
-        # make sure to get ack
-        queue.enqueue(message)
-
-        return
+        provider_details = self.storage_controller.get_provider_details(
+            project_id,
+            service_name)
+        return self._driver.providers.map(
+            self.provider_wrapper.update,
+            provider_details,
+            service_obj)
 
     def delete(self, project_id, service_name):
         try:
@@ -83,13 +89,28 @@ class DefaultServicesController(base.ServicesController):
         except Exception:
             raise LookupError('Service %s does not exist' % service_name)
 
-        message = {}
-        message['action'] = 'delete'
-        message['project_id'] = project_id
-        message['service_name'] = service_name
+        # change each provider detail's status to delete_in_progress
+        # TODO(tonytan4ever): what if this provider is in 'failed' status?
+        # Maybe raising a 400 error here ?
+        for provider in provider_details:
+            provider_details[provider].status = "delete_in_progress"
 
-        # send service_json to a queue
-        # make sure to get ack
-        queue.enqueue(message)
+        self.storage_controller.update_provider_details(
+            project_id,
+            service_name,
+            provider_details)
 
+        self.storage_controller._driver.close_connection()
+        p = multiprocessing.Process(
+            name='Process: delete poppy service %s for'
+            ' project id: %s' %
+            (service_name,
+             project_id),
+            target=delete_service_worker.service_delete_worker,
+            args=(
+                provider_details,
+                self,
+                project_id,
+                service_name))
+        p.start()
         return

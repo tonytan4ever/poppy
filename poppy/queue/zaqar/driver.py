@@ -65,14 +65,10 @@ class QueueProvider(base.Driver):
             return True
         return False
 
-    def enqueue(self, action, project_id, service_name, body):
+    def enqueue(self, message):
         message_body = {
             'ttl': self.zaqar_conf.message_ttl,
-            'body': {
-                'action': action,
-                'project_id': project_id,
-                'service_name': service_name,
-                'body': body}}
+            'body': message}
         resp = self.queue.post(message_body)
         return resp
 
