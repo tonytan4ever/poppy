@@ -57,7 +57,7 @@ class DefaultServicesController(base.ServicesController):
         message['body'] = service_json
 
         # send service_json to a queue
-        ack = queue.enqueue(message):
+        ack = self.queue.enqueue(message)
         if ack:
             # everything is good
             pass
