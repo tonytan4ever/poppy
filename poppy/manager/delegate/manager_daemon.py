@@ -28,7 +28,8 @@ LOG = log.getLogger(__name__)
 
 def manager_daemon(mgr):
     while True:
-        message_body = mgr.queue.dequeue()
+        message_body = mgr.queue.peek()
+        mgr.queue.dequeue(message_body)
         message = json.loads(message_body)
         project_id = message['project_id']
         service_json = message['body']
@@ -40,6 +41,7 @@ def manager_daemon(mgr):
             service_queue_workers.create_service_worker(mgr, project_id,
                                                         service_name,
                                                         service_obj)
+            #mgr.queue.dequeue(message_body)
         else:
             LOG.info('Other actions (update/delete) does not have'
                      'worker implmented yet...')

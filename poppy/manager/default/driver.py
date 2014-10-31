@@ -18,6 +18,7 @@
 from poppy.common import decorators
 from poppy.manager import base
 from poppy.manager.default import controllers
+from poppy.manager.default import manager_daemon
 
 
 class DefaultManagerDriver(base.Driver):
@@ -41,3 +42,7 @@ class DefaultManagerDriver(base.Driver):
     @decorators.lazy_property(write=False)
     def health_controller(self):
         return controllers.Health(self)
+    
+    def run_delegate_daemon(self):
+        manager_daemon.manager_daemon(self)
+
